@@ -3,7 +3,7 @@
 I am working on my skills as a software engineer, using android development with kotlina dn jetpack Compose. This is a simple notetaking app that can create, edit, delete, view and dicate notes. Notes are stored locally in a room database so they will persist after closing the app or phone is restarted. 
 
 
-[Software Demo Video](http://youtube.link.goes.here)
+[Software Demo Video](https://youtu.be/VMcWlkQ7pz8)
 
 # Development Environment
 

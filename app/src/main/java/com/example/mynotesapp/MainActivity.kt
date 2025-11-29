@@ -61,6 +61,7 @@ class MainActivity : ComponentActivity() {
 fun NotesScreen(viewModel: NoteViewModel) {
     val notes by viewModel.allNotes.collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     var title by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
@@ -69,10 +70,11 @@ fun NotesScreen(viewModel: NoteViewModel) {
 
     val context = LocalContext.current
     val activity = context as Activity
-    val dictationHelper = remember { DictationHelper(activity) }
-    val dictatedText by dictationHelper.recognizedText
+    val dictationHelper = remember { DictationHelper(activity, viewModel) }
+    val dictatedText by dictationHelper.recognizedText   // ✅ now defined
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = { TopAppBar(title = { Text("My Notes") }) }
     ) { innerPadding ->
         if (selectedNote == null) {
@@ -106,6 +108,7 @@ fun NotesScreen(viewModel: NoteViewModel) {
                                     viewModel.insert(Note(title = title, content = content))
                                     title = ""
                                     content = ""
+                                    snackbarHostState.showSnackbar("Note added")
                                 }
                             }
                         },
@@ -117,10 +120,10 @@ fun NotesScreen(viewModel: NoteViewModel) {
                     Spacer(modifier = Modifier.width(8.dp))
 
                     Button(
-                        onClick = { dictationHelper.startListening() },
+                        onClick = { dictationHelper.toggleListening() },   // ✅ single toggle
                         modifier = Modifier.padding(top = 8.dp).weight(1f)
                     ) {
-                        Text("Dictate Note")
+                        Text(if (dictationHelper.isListening) "Stop Dictation" else "Dictate Note")
                     }
                 }
 
@@ -154,8 +157,14 @@ fun NotesScreen(viewModel: NoteViewModel) {
                     }
                     Button(
                         onClick = {
-                            scope.launch { viewModel.delete(selectedNote!!) }
-                            selectedNote = null
+                            val noteToDelete = selectedNote
+                            if (noteToDelete != null) {
+                                selectedNote = null
+                                scope.launch {
+                                    viewModel.delete(noteToDelete)
+                                    snackbarHostState.showSnackbar("Note deleted")
+                                }
+                            }
                         },
                         colors = ButtonDefaults.buttonColors(MaterialTheme.colorScheme.error),
                         modifier = Modifier.padding(end = 8.dp)
@@ -197,7 +206,14 @@ fun NotesScreen(viewModel: NoteViewModel) {
                     confirmButton = {
                         Button(onClick = {
                             scope.launch {
-                                viewModel.update(selectedNote!!.copy(title = editedTitle, content = editedContent))
+                                val updatedNote = selectedNote!!.copy(
+                                    title = editedTitle,
+                                    content = editedContent,
+                                    timestamp = System.currentTimeMillis()
+                                )
+                                viewModel.update(updatedNote)
+                                selectedNote = updatedNote
+                                snackbarHostState.showSnackbar("Note updated")
                             }
                             showEditDialog = false
                         }) {

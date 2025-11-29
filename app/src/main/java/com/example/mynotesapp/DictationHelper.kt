@@ -3,67 +3,72 @@ package com.example.mynotesapp
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
-import android.speech.RecognizerIntent
 import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import android.util.Log
 import androidx.compose.runtime.mutableStateOf
+import com.example.mynotesapp.data.Note
+import com.example.mynotesapp.viewmodel.NoteViewModel
 
-class DictationHelper(private val activity: Activity) {
+class DictationHelper(
+    private val activity: Activity,
+    private val viewModel: NoteViewModel
+) {
     val recognizedText = mutableStateOf("")
-
     private val speechRecognizer: SpeechRecognizer =
         SpeechRecognizer.createSpeechRecognizer(activity)
 
-    fun startListening() {
+    var isListening = false
+        private set
+
+    fun toggleListening() {
+        if (isListening) stopListening() else startListening()
+    }
+
+    private fun startListening() {
+        isListening = true
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(
                 RecognizerIntent.EXTRA_LANGUAGE_MODEL,
                 RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
             )
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak now…")
         }
 
         speechRecognizer.setRecognitionListener(object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) {
-                Log.d("DictationHelper", "Ready for speech")
-            }
-
-            override fun onBeginningOfSpeech() {
-                Log.d("DictationHelper", "Speech started")
-            }
-
-            override fun onRmsChanged(rmsdB: Float) {}
-            override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEndOfSpeech() {
-                Log.d("DictationHelper", "Speech ended")
-            }
-
-            override fun onError(error: Int) {
-                Log.e("DictationHelper", "Error code: $error")
-            }
-
             override fun onResults(results: Bundle?) {
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                Log.d("DictationHelper", "Results: $matches")
                 if (!matches.isNullOrEmpty()) {
-                    recognizedText.value = matches[0]
+                    val text = matches[0]
+                    recognizedText.value = text
+
+                    // Auto-save each dictated phrase
+                    viewModel.insert(Note(title = "Dictated Note", content = text))
+
+                    recognizedText.value = ""
+                    // Restart listening for continuous dictation
+                    if (isListening) startListening()
                 }
             }
 
-            override fun onPartialResults(partialResults: Bundle?) {
-                val partial = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                Log.d("DictationHelper", "Partial: $partial")
+            override fun onError(error: Int) {
+                if (isListening) startListening()
             }
 
+            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onBeginningOfSpeech() {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {}
             override fun onEvent(eventType: Int, params: Bundle?) {}
+            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onRmsChanged(rmsdB: Float) {}
         })
 
         speechRecognizer.startListening(intent)
     }
 
     fun stopListening() {
+        isListening = false
         speechRecognizer.stopListening()
     }
 }
